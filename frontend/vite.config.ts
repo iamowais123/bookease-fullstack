@@ -4,6 +4,11 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
+      process.env.VITE_API_BASE_URL || process.env.API_BASE_URL || ''
+    ),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
