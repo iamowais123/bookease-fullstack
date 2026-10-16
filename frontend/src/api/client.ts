@@ -1,4 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const rawBase = (import.meta.env.VITE_API_BASE_URL || '/api').trim();
+const API_BASE = rawBase.endsWith('/api')
+  ? rawBase
+  : rawBase.endsWith('/')
+  ? `${rawBase}api`
+  : rawBase === ''
+  ? '/api'
+  : `${rawBase}/api`;
 
 let csrfTokenCache: string | null = null;
 let csrfPromise: Promise<string> | null = null;
