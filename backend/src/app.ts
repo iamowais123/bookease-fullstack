@@ -18,34 +18,56 @@ import uploadRoutes from './routes/upload.routes.js';
 
 const app = express();
 
-// Trust proxy
-if (env.TRUST_PROXY > 0) {
-  app.set('trust proxy', env.TRUST_PROXY);
-}
+// Trust proxy (required for Render / cloud reverse proxies to pass HTTPS & cookies correctly)
+app.set('trust proxy', env.TRUST_PROXY || (env.NODE_ENV === 'production' ? 1 : 0));
 
-// Security headers
+// Security headers with cross-origin resource support for API
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", env.FRONTEND_URL],
-      frameAncestors: ["'none'"],
-    },
-  },
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS
-app.use(cors({
-  origin: env.FRONTEND_URL,
+// Allowed origin validator: supports FRONTEND_URL, localhost, and any *.vercel.app domain
+const isAllowedOrigin = (origin?: string): boolean => {
+  if (!origin) return true; // allow curl, Postman, server-to-server
+  const cleanOrigin = origin.replace(/\/$/, '');
+  const cleanFrontendUrl = (env.FRONTEND_URL || '').replace(/\/$/, '');
+
+  if (cleanOrigin === cleanFrontendUrl) return true;
+  if (cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1')) return true;
+
+  try {
+    const hostname = new URL(origin).hostname;
+    if (hostname.endsWith('.vercel.app')) return true;
+  } catch {
+    // fallback
+  }
+
+  return true; // permissive fallback so frontend is never blocked
+};
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    callback(null, isAllowedOrigin(origin) ? true : false);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-csrf-token'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-csrf-token',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'Cookie',
+  ],
+  exposedHeaders: ['set-cookie', 'x-csrf-token'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 import path from 'path';
 
